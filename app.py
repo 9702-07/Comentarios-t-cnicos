@@ -11,7 +11,7 @@ from flask import Flask, request, render_template, send_file, jsonify
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB máx
 
-OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'output')
+OUTPUT_DIR = '/tmp/output'
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
