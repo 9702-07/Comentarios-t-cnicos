@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Comentarios Técnicos — Pacific Control SAC</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: #f0f4f8;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px;
+      color: #1a2b3c;
+    }
+
+    /* ── Header ── */
+    header {
+      width: 100%;
+      max-width: 760px;
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    header h1 {
+      font-size: 1.55rem;
+      font-weight: 700;
+      color: #0d2c52;
+      letter-spacing: .3px;
+    }
+    header p {
+      margin-top: 6px;
+      color: #4a6080;
+      font-size: .93rem;
+    }
+
+    /* ── Card ── */
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 16px rgba(0,0,0,.09);
+      padding: 32px 36px;
+      width: 100%;
+      max-width: 760px;
+    }
+
+    /* ── Sección ── */
+    .section-title {
+      font-size: .78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #0d2c52;
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #e3eaf2;
+    }
+
+    .field-group { margin-bottom: 26px; }
+
+    label {
+      display: block;
+      font-size: .88rem;
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 6px;
+    }
+    label span { font-weight: 400; color: #6b7d8e; font-size: .82rem; }
+
+    input[type="text"] {
+      width: 260px;
+      padding: 9px 14px;
+      border: 1.5px solid #c8d6e5;
+      border-radius: 7px;
+      font-size: .95rem;
+      color: #1a2b3c;
+      transition: border-color .2s;
+    }
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #2563eb;
+    }
+
+    /* ── Drop zone ── */
+    .drop-zone {
+      border: 2px dashed #b0c4de;
+      border-radius: 10px;
+      padding: 22px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+      background: #f7fafd;
+      position: relative;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: #2563eb;
+      background: #eff5ff;
+    }
+    .drop-zone input[type="file"] {
+      position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+    }
+    .drop-zone .icon { font-size: 2rem; margin-bottom: 6px; }
+    .drop-zone .drop-label {
+      font-size: .9rem; color: #4a6080;
+    }
+    .drop-zone .drop-label strong { color: #2563eb; }
+    .drop-zone .file-types {
+      font-size: .77rem; color: #8a9bb0; margin-top: 4px;
+    }
+
+    /* ── File list ── */
+    .file-list { margin-top: 10px; }
+    .file-item {
+      display: flex; align-items: center; gap: 8px;
+      background: #f0f6ff; border-radius: 6px;
+      padding: 6px 10px; margin-top: 6px;
+      font-size: .83rem; color: #2c3e50;
+    }
+    .file-item .file-icon { color: #2563eb; font-size: 1rem; }
+    .file-item .file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-item .file-remove {
+      cursor: pointer; color: #8a9bb0; font-size: 1.1rem; line-height: 1;
+      border: none; background: none; padding: 0 2px;
+    }
+    .file-item .file-remove:hover { color: #e53e3e; }
+
+    /* ── Separador ── */
+    .divider {
+      border: none; border-top: 1.5px solid #e3eaf2;
+      margin: 28px 0;
+    }
+
+    /* ── Botón generar ── */
+    #btn-generar {
+      display: block;
+      width: 100%;
+      padding: 14px;
+      background: #0d2c52;
+      color: #fff;
+      font-size: 1rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 9px;
+      cursor: pointer;
+      letter-spacing: .4px;
+      transition: background .2s, transform .1s;
+    }
+    #btn-generar:hover:not(:disabled) { background: #1a4580; }
+    #btn-generar:active:not(:disabled) { transform: scale(.99); }
+    #btn-generar:disabled { background: #9aabb8; cursor: not-allowed; }
+
+    /* ── Spinner ── */
+    .spinner {
+      display: none;
+      width: 20px; height: 20px;
+      border: 3px solid rgba(255,255,255,.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      margin: 0 auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Result card ── */
+    #result {
+      display: none;
+      width: 100%;
+      max-width: 760px;
+      margin-top: 20px;
+    }
+    .result-ok {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 16px rgba(0,0,0,.09);
+      padding: 26px 36px;
+    }
+    .result-ok h2 {
+      color: #166534; font-size: 1.1rem; margin-bottom: 14px;
+    }
+    .result-ok h2::before { content: '✓  '; }
+
+    .result-error {
+      background: #fff5f5;
+      border: 1.5px solid #feb2b2;
+      border-radius: 12px;
+      padding: 20px 28px;
+      color: #c53030;
+      font-size: .93rem;
+    }
+    .result-error::before { content: '✗  '; font-weight: 700; }
+
+    .log-list {
+      list-style: none;
+      margin: 8px 0 14px;
+      font-size: .85rem;
+      color: #374151;
+    }
+    .log-list li { padding: 3px 0; }
+    .log-list li::before { content: '›  '; color: #6b7d8e; }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 10px; border-radius: 99px;
+      font-size: .78rem; font-weight: 600;
+    }
+    .badge-ok    { background: #dcfce7; color: #166534; }
+    .badge-warn  { background: #fef9c3; color: #854d0e; }
+    .badge-error { background: #fee2e2; color: #b91c1c; }
+
+    .warn-list {
+      font-size: .82rem; color: #92400e;
+      background: #fffbeb; border-radius: 7px;
+      padding: 10px 14px; margin: 10px 0;
+    }
+    .warn-list b { display: block; margin-bottom: 4px; }
+
+    #btn-download {
+      display: inline-block;
+      margin-top: 16px;
+      padding: 11px 28px;
+      background: #2563eb;
+      color: #fff;
+      font-size: .95rem;
+      font-weight: 700;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: background .2s;
+    }
+    #btn-download:hover { background: #1d4ed8; }
+
+    #btn-nuevo {
+      display: inline-block;
+      margin-top: 16px; margin-left: 12px;
+      padding: 11px 20px;
+      background: transparent;
+      color: #4a6080;
+      font-size: .92rem;
+      border: 1.5px solid #c8d6e5;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: border-color .2s, color .2s;
+    }
+    #btn-nuevo:hover { border-color: #0d2c52; color: #0d2c52; }
+
+    footer {
+      margin-top: 40px;
+      color: #8a9bb0;
+      font-size: .78rem;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Generador de Comentarios Técnicos</h1>
+    <p>Pacific Control SAC — Calidad del Agua para Consumo Humano</p>
+  </header>
+
+  <div class="card" id="form-card">
+    <form id="form" enctype="multipart/form-data">
+
+      <!-- N° Comentario -->
+      <div class="field-group">
+        <p class="section-title">Datos del Comentario</p>
+        <label for="numero">
+          N° Comentario Técnico
+          <span>— Ej: 0267-2026</span>
+        </label>
+        <input type="text" id="numero" name="numero" placeholder="0267-2026" autocomplete="off">
+      </div>
+
+      <hr class="divider">
+
+      <!-- PDFs Informes -->
+      <div class="field-group">
+        <p class="section-title">Informes de Ensayo</p>
+        <label>PDFs de Informes de Ensayo <span>— Puedes adjuntar varios</span></label>
+        <div class="drop-zone" id="drop-pdfs">
+          <input type="file" name="pdfs" id="input-pdfs"
+                 accept=".pdf" multiple>
+          <div class="icon">📄</div>
+          <div class="drop-label">
+            Arrastra los PDFs aquí o <strong>haz clic para seleccionar</strong>
+          </div>
+          <div class="file-types">Solo archivos .pdf</div>
+        </div>
+        <div class="file-list" id="list-pdfs"></div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- LMP -->
+      <div class="field-group">
+        <p class="section-title">Límites Máximos Permisibles (LMP)</p>
+        <label>Archivo de LMP <span>— Excel (.xlsx) o PDF</span></label>
+        <div class="drop-zone" id="drop-lmp">
+          <input type="file" name="lmp" id="input-lmp"
+                 accept=".xlsx,.xls,.pdf">
+          <div class="icon">📊</div>
+          <div class="drop-label">
+            Arrastra el archivo aquí o <strong>haz clic para seleccionar</strong>
+          </div>
+          <div class="file-types">Excel (.xlsx / .xls) o PDF</div>
+        </div>
+        <div class="file-list" id="list-lmp"></div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Botón -->
+      <button type="submit" id="btn-generar">
+        <span id="btn-text">Generar Comentario Técnico</span>
+        <div class="spinner" id="spinner"></div>
+      </button>
+
+    </form>
+  </div>
+
+  <!-- Resultado -->
+  <div id="result"></div>
+
+  <footer>D.S. N° 031-2010-SA · Reglamento de la Calidad del Agua para Consumo Humano</footer>
+
+<script>
+  // ── Drag & drop genérico ────────────────────────────────────────────────────
+  function setupDropZone(zoneId, inputId, listId, multiple) {
+    const zone  = document.getElementById(zoneId);
+    const input = document.getElementById(inputId);
+    const list  = document.getElementById(listId);
+
+    // Drag events
+    zone.addEventListener('dragover',  e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', ()  => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      const dt = e.dataTransfer;
+      if (dt.files.length) {
+        // Asignar al input via DataTransfer
+        const transfer = new DataTransfer();
+        if (multiple) {
+          Array.from(dt.files).forEach(f => transfer.items.add(f));
+        } else {
+          transfer.items.add(dt.files[0]);
+        }
+        input.files = transfer.files;
+        renderList(list, input.files, input, multiple);
+      }
+    });
+
+    input.addEventListener('change', () => renderList(list, input.files, input, multiple));
+  }
+
+  function renderList(list, files, input, multiple) {
+    list.innerHTML = '';
+    Array.from(files).forEach((f, idx) => {
+      const item = document.createElement('div');
+      item.className = 'file-item';
+      item.innerHTML = `
+        <span class="file-icon">${f.name.endsWith('.pdf') ? '📄' : '📊'}</span>
+        <span class="file-name" title="${f.name}">${f.name}</span>
+        <button class="file-remove" data-idx="${idx}" title="Quitar">×</button>`;
+      list.appendChild(item);
+    });
+
+    // Quitar archivo
+    list.querySelectorAll('.file-remove').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.idx);
+        const dt  = new DataTransfer();
+        Array.from(input.files)
+          .filter((_, i) => i !== idx)
+          .forEach(f => dt.items.add(f));
+        input.files = dt.files;
+        renderList(list, input.files, input, multiple);
+      });
+    });
+  }
+
+  setupDropZone('drop-pdfs', 'input-pdfs', 'list-pdfs', true);
+  setupDropZone('drop-lmp',  'input-lmp',  'list-lmp',  false);
+
+  // ── Envío del formulario ────────────────────────────────────────────────────
+  document.getElementById('form').addEventListener('submit', async e => {
+    e.preventDefault();
+
+    const btn      = document.getElementById('btn-generar');
+    const btnText  = document.getElementById('btn-text');
+    const spinner  = document.getElementById('spinner');
+    const resultEl = document.getElementById('result');
+
+    // UI de carga
+    btn.disabled   = true;
+    btnText.style.display = 'none';
+    spinner.style.display = 'block';
+    resultEl.style.display = 'none';
+    resultEl.innerHTML = '';
+
+    try {
+      const formData = new FormData(e.target);
+      const res  = await fetch('/generar', { method: 'POST', body: formData });
+      const data = await res.json();
+
+      if (data.error) {
+        resultEl.innerHTML = `<div class="result-error">${data.error}</div>`;
+      } else {
+        const conformeBadge = data.no_conformes.length === 0
+          ? `<span class="badge badge-ok">Todos CONFORMES</span>`
+          : `<span class="badge badge-error">${data.no_conformes.length} NO CONFORME${data.no_conformes.length > 1 ? 'S' : ''}</span>`;
+
+        const microTxt = data.tiene_micro
+          ? '✓ Análisis microbiológicos detectados — firma Joel incluida.'
+          : '';
+
+        const sinLmpTxt = data.sin_lmp && data.sin_lmp.length > 0
+          ? `<div class="warn-list">
+               <b>⚠ Sin LMP en el archivo (${data.sin_lmp.length} parámetros):</b>
+               ${data.sin_lmp.join(', ')}${data.sin_lmp.length === 10 ? '...' : ''}
+             </div>`
+          : '';
+
+        const noConfTxt = data.no_conformes.length > 0
+          ? `<div class="warn-list" style="background:#fee2e2;color:#b91c1c;">
+               <b>✗ Parámetros NO CONFORMES:</b>
+               ${data.no_conformes.join(', ')}
+             </div>`
+          : '';
+
+        const logItems = data.log.map(l => `<li>${l}</li>`).join('');
+
+        resultEl.innerHTML = `
+          <div class="result-ok">
+            <h2>Comentario Técnico generado</h2>
+
+            <ul class="log-list">${logItems}</ul>
+
+            <div style="margin-bottom:8px;">
+              Total de parámetros evaluados: <strong>${data.total_params}</strong>
+              &nbsp;&nbsp;${conformeBadge}
+            </div>
+
+            ${microTxt ? `<p style="font-size:.85rem;color:#374151;margin-bottom:8px;">${microTxt}</p>` : ''}
+            ${sinLmpTxt}
+            ${noConfTxt}
+
+            <a id="btn-download" href="/descargar/${encodeURIComponent(data.archivo)}" download>
+              ⬇  Descargar ${data.archivo}
+            </a>
+            <button id="btn-nuevo" onclick="location.reload()">Nuevo</button>
+          </div>`;
+      }
+
+    } catch (err) {
+      resultEl.innerHTML = `<div class="result-error">Error de conexión: ${err.message}</div>`;
+    } finally {
+      btn.disabled      = false;
+      btnText.style.display = 'inline';
+      spinner.style.display = 'none';
+      resultEl.style.display = 'block';
+      resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  });
+</script>
+</body>
+</html>
