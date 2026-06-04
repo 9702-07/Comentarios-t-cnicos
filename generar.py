@@ -16,8 +16,9 @@ from docx.enum.table import WD_TABLE_ALIGNMENT
 from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
-# Ruta al template DOCX (mismo directorio que este archivo)
+# Rutas a archivos fijos (mismo directorio que este archivo)
 TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), 'Comentarios técnico ejemplo.docx')
+LMP_PATH      = os.path.join(os.path.dirname(__file__), 'DECRETOS.xlsx')
 
 MESES = {
     1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
@@ -581,6 +582,23 @@ def _insertar_firmas_template(doc):
             body.append(para)
 
 
+def _texto_conclusion(numeros, no_conformes):
+    """Genera el texto por defecto de la conclusión según los resultados."""
+    if not no_conformes:
+        return (
+            f'El resultado del análisis perteneciente al Informe de Ensayo N° {numeros}, '
+            f'cumplen con los valores establecidos en el Decreto Supremo N° 031-2010-SA '
+            f'Reglamento de la Calidad del Agua para Consumo Humano.'
+        )
+    params = ', '.join(no_conformes)
+    return (
+        f'Los resultados de los análisis del Informe de Ensayo N° {numeros}, '
+        f'se encuentran dentro de los Límites Máximos Permisibles del Decreto Supremo '
+        f'N° 031-2010-SA Reglamento de la Calidad del Agua para Consumo Humano, '
+        f'excepto los parámetros: {params}.'
+    )
+
+
 def construir_datos(numero_ct, informes, lmp_dict):
     """
     Extrae el encabezado y evalúa cada parámetro contra los LMP, SIN generar el
@@ -626,6 +644,8 @@ def construir_datos(numero_ct, informes, lmp_dict):
             'evaluacion': ev,
         })
 
+    no_conf_inicial = [f['analisis'] for f in filas if f.get('evaluacion') == 'NO CONFORME']
+
     return {
         'numero':      numero_ct,
         'encabezado':  encabezado,
@@ -633,6 +653,7 @@ def construir_datos(numero_ct, informes, lmp_dict):
         'tiene_micro': any(i['tiene_micro'] for i in informes),
         'filas':       filas,
         'sin_lmp':     sin_lmp,
+        'conclusion':  _texto_conclusion(numeros, no_conf_inicial),
     }
 
 
@@ -739,7 +760,7 @@ def generar_word_desde_datos(datos, output_path):
 
     _p(doc)
 
-    # ── Conclusión ────────────────────────────────────────────────────────────
+    # ── Conclusión (texto aprobado por el usuario en la pantalla de revisión) ──
     p_cl = doc.add_paragraph()
     p_cl.paragraph_format.space_before = Pt(0)
     p_cl.paragraph_format.space_after  = Pt(2)
@@ -750,16 +771,7 @@ def generar_word_desde_datos(datos, output_path):
     p_cl2.paragraph_format.space_before = Pt(0)
     p_cl2.paragraph_format.space_after  = Pt(4)
 
-    if not no_conformes:
-        concl = (f'El resultado del análisis perteneciente al Informe de Ensayo N° {numeros}, '
-                 f'cumplen con los valores establecidos en el Decreto Supremo N° 031-2010-SA '
-                 f'Reglamento de la Calidad del Agua para Consumo Humano.')
-    else:
-        params = ', '.join(no_conformes)
-        concl  = (f'Los resultados de los análisis del Informe de Ensayo N° {numeros}, '
-                  f'se encuentran dentro de los Límites Máximos Permisibles del Decreto Supremo '
-                  f'N° 031-2010-SA Reglamento de la Calidad del Agua para Consumo Humano, '
-                  f'excepto los parámetros: {params}.')
+    concl = datos.get('conclusion') or _texto_conclusion(numeros, no_conformes)
     r = p_cl2.add_run(concl)
     r.font.size = Pt(10); r.font.name = 'Arial'
 

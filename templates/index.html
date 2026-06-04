@@ -276,6 +276,23 @@
     }
     .btn-secundario:hover { background: #dfeaff; }
 
+    /* ── Conclusión editable ── */
+    .conclusion-section { margin-top: 6px; }
+    .conclusion-section label {
+      font-size: .82rem; font-weight: 700; color: #0d2c52;
+      text-transform: uppercase; letter-spacing: .8px; margin-bottom: 6px;
+    }
+    #conclusion-texto {
+      width: 100%; min-height: 100px; padding: 10px 12px;
+      border: 1.5px solid #c8d6e5; border-radius: 7px;
+      font-size: .88rem; font-family: inherit; color: #1a2b3c;
+      line-height: 1.55; resize: vertical; transition: border-color .2s;
+    }
+    #conclusion-texto:focus { outline: none; border-color: #2563eb; }
+    .conclusion-hint {
+      font-size: .77rem; color: #8a9bb0; margin-top: 5px;
+    }
+
     .review-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .review-actions .btn-primario { flex: 1; min-width: 280px; }
     .btn-link {
@@ -354,22 +371,6 @@
 
       <hr class="divider">
 
-      <div class="field-group">
-        <p class="section-title">Límites Máximos Permisibles (LMP)</p>
-        <label>Archivo de LMP <span>— Excel (.xlsx) o PDF</span></label>
-        <div class="drop-zone" id="drop-lmp">
-          <input type="file" name="lmp" id="input-lmp" accept=".xlsx,.xls,.pdf">
-          <div class="icon">📊</div>
-          <div class="drop-label">
-            Arrastra el archivo aquí o <strong>haz clic para seleccionar</strong>
-          </div>
-          <div class="file-types">Excel (.xlsx / .xls) o PDF</div>
-        </div>
-        <div class="file-list" id="list-lmp"></div>
-      </div>
-
-      <hr class="divider">
-
       <button type="submit" id="btn-generar">
         <span id="btn-text">Analizar resultados</span>
         <div class="spinner" id="spinner"></div>
@@ -410,6 +411,15 @@
     </div>
 
     <button type="button" id="btn-agregar" class="btn-secundario">+ Agregar parámetro</button>
+
+    <hr class="divider">
+
+    <!-- Conclusión editable -->
+    <div class="conclusion-section">
+      <label for="conclusion-texto">Conclusión</label>
+      <textarea id="conclusion-texto" spellcheck="true"></textarea>
+      <p class="conclusion-hint">El texto se genera automáticamente según la conformidad. Puedes editarlo antes de generar el Word.</p>
+    </div>
 
     <hr class="divider">
 
@@ -611,7 +621,7 @@
     const d = data.datos;
     const logItems = (data.log || []).map(l => `<li>${esc(l)}</li>`).join('');
     const sinLmp = (d.sin_lmp && d.sin_lmp.length)
-      ? `<div class="warn-list"><b>⚠ Sin LMP en el archivo (${d.sin_lmp.length}) — revisa el límite a mano:</b>
+      ? `<div class="warn-list"><b>⚠ Sin LMP en DECRETOS.xlsx (${d.sin_lmp.length}) — revisa el límite a mano:</b>
            ${d.sin_lmp.map(esc).join(', ')}</div>`
       : '';
     document.getElementById('review-info').innerHTML =
@@ -621,6 +631,9 @@
     tbody.innerHTML = '';
     (d.filas || []).forEach(f => tbody.appendChild(crearFila(f, false)));
     actualizarResumen();
+
+    // Poblar conclusión editable con el texto generado automáticamente
+    document.getElementById('conclusion-texto').value = d.conclusion || '';
   }
 
   function recolectarFilas() {
@@ -733,7 +746,6 @@
   }
 
   setupDropZone('drop-pdfs', 'input-pdfs', 'list-pdfs', true);
-  setupDropZone('drop-lmp',  'input-lmp',  'list-lmp',  false);
 
   // ════════════════════════════════════════════════════════════════════════════
   // PASO 1 → Analizar
@@ -790,7 +802,8 @@
     clearFlash();
     if (!datosActuales) { showError('Primero analiza los informes.'); return; }
 
-    datosActuales.filas = recolectarFilas();
+    datosActuales.filas      = recolectarFilas();
+    datosActuales.conclusion = document.getElementById('conclusion-texto').value.trim();
     if (datosActuales.filas.length === 0) {
       showError('No hay parámetros en la tabla. Agrega al menos uno.');
       return;
