@@ -121,17 +121,26 @@ def generar():
         numero     = str(datos['numero']).strip()
         nombre_doc = f'Comentario Técnico N° {numero}.docx'
 
-        buf = io.BytesIO()
-        no_conformes = gen.generar_word_desde_datos(datos, buf)
+        # Generar ambos formatos en memoria
+        buf_cf = io.BytesIO()
+        no_conformes = gen.generar_word_desde_datos(datos, buf_cf)
+
+        buf_sf = io.BytesIO()
+        gen.generar_word_sin_fondo(datos, buf_sf)
+
+        nombre_cf = f'Comentario Técnico N° {numero} (Con Fondo).docx'
+        nombre_sf = f'Comentario Técnico N° {numero} (Sin Fondo).docx'
 
         return jsonify({
-            'ok':           True,
-            'archivo':      nombre_doc,
-            'docx_b64':     base64.b64encode(buf.getvalue()).decode('ascii'),
-            'no_conformes': no_conformes,
-            'total_params': len([f for f in datos['filas']
-                                 if (f.get('analisis') or f.get('resultado'))]),
-            'tiene_micro':  bool(datos.get('tiene_micro')),
+            'ok':            True,
+            'archivo_cf':    nombre_cf,
+            'archivo_sf':    nombre_sf,
+            'docx_cf_b64':   base64.b64encode(buf_cf.getvalue()).decode('ascii'),
+            'docx_sf_b64':   base64.b64encode(buf_sf.getvalue()).decode('ascii'),
+            'no_conformes':  no_conformes,
+            'total_params':  len([f for f in datos['filas']
+                                  if (f.get('analisis') or f.get('resultado'))]),
+            'tiene_micro':   bool(datos.get('tiene_micro')),
         })
 
     except Exception as e:

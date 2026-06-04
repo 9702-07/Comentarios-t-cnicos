@@ -301,12 +301,16 @@
     }
     .btn-link:hover { color: #0d2c52; text-decoration: underline; }
 
-    #btn-download {
-      display: inline-block; margin-top: 16px; padding: 11px 28px;
-      background: #2563eb; color: #fff; font-size: .95rem; font-weight: 700;
-      border-radius: 8px; text-decoration: none; transition: background .2s;
+    .download-group { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+    .btn-dl {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 11px 22px; font-size: .92rem; font-weight: 700;
+      border-radius: 8px; text-decoration: none; transition: background .2s; border: none; cursor: pointer;
     }
-    #btn-download:hover { background: #1d4ed8; }
+    .btn-dl-cf { background: #0d2c52; color: #fff; }
+    .btn-dl-cf:hover { background: #1a4580; }
+    .btn-dl-sf { background: #fff; color: #0d2c52; border: 2px solid #0d2c52; }
+    .btn-dl-sf:hover { background: #f0f4f8; }
     #result .btn-link, #result #btn-nuevo {
       margin-top: 16px; margin-left: 8px;
     }
@@ -678,18 +682,29 @@
         </div>
         ${microTxt ? `<p style="font-size:.85rem;color:#374151;margin-bottom:8px;">${microTxt}</p>` : ''}
         ${noConfTxt}
-        <a id="btn-download" download="${esc(data.archivo)}">⬇  Descargar ${esc(data.archivo)}</a>
-        <button id="btn-rerevisar" class="btn-link" type="button">← Volver a revisar</button>
-        <button id="btn-nuevo" type="button" onclick="location.reload()">Nuevo</button>
+        <div class="download-group">
+          <a id="btn-dl-cf" class="btn-dl btn-dl-cf" download="${esc(data.archivo_cf)}">
+            ⬇ Con Fondo
+          </a>
+          <a id="btn-dl-sf" class="btn-dl btn-dl-sf" download="${esc(data.archivo_sf)}">
+            ⬇ Sin Fondo
+          </a>
+        </div>
+        <div style="margin-top:12px;">
+          <button id="btn-rerevisar" class="btn-link" type="button">← Volver a revisar</button>
+          <button id="btn-nuevo" type="button" onclick="location.reload()">Nuevo</button>
+        </div>
       </div>`;
 
-    // La descarga se arma en el navegador desde el base64 recibido (sin pedir
-    // el archivo al servidor → fiable en serverless).
-    const dl = document.getElementById('btn-download');
-    if (data.docx_b64) {
-      const blob = b64ToBlob(data.docx_b64,
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-      dl.href = URL.createObjectURL(blob);
+    // Armar descargas desde base64 (fiable en serverless)
+    const mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    if (data.docx_cf_b64) {
+      document.getElementById('btn-dl-cf').href =
+        URL.createObjectURL(b64ToBlob(data.docx_cf_b64, mime));
+    }
+    if (data.docx_sf_b64) {
+      document.getElementById('btn-dl-sf').href =
+        URL.createObjectURL(b64ToBlob(data.docx_sf_b64, mime));
     }
     document.getElementById('btn-rerevisar').addEventListener('click', () => {
       clearFlash();

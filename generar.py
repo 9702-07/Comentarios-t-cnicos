@@ -17,8 +17,9 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
 # Rutas a archivos fijos (mismo directorio que este archivo)
-TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), 'Comentarios técnico ejemplo.docx')
-LMP_PATH      = os.path.join(os.path.dirname(__file__), 'DECRETOS.xlsx')
+TEMPLATE_PATH    = os.path.join(os.path.dirname(__file__), 'Comentarios técnico ejemplo.docx')
+TEMPLATE_SF_PATH = os.path.join(os.path.dirname(__file__), 'template_sin_fondo.docx')
+LMP_PATH         = os.path.join(os.path.dirname(__file__), 'DECRETOS.xlsx')
 
 MESES = {
     1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
@@ -798,6 +799,153 @@ def generar_word_desde_datos(datos, output_path):
     # Las imágenes de firma son flotantes (wp:anchor). En el template original
     # hay 11 párrafos vacíos después del VML para que "FIN DEL DOCUMENTO" no
     # quede tapado por las imágenes flotantes.
+    _insertar_firmas_template(doc)
+
+    for _ in range(11):
+        _p(doc)
+    _p(doc, 'FIN DEL DOCUMENTO', bold=True, size=10,
+       align=WD_ALIGN_PARAGRAPH.CENTER)
+
+    doc.save(output_path)
+    return no_conformes
+
+
+def generar_word_sin_fondo(datos, output_path):
+    """
+    Genera el Comentario Técnico en formato SIN FONDO:
+    fondo blanco limpio, sin header de Pacific Control, footer 'general terms'.
+    Mismo contenido y firmas que la versión con fondo.
+    Retorna la lista de parámetros NO CONFORMES.
+    """
+    # ── Abrir template sin fondo y limpiar cuerpo ────────────────────────────
+    doc = Document(TEMPLATE_SF_PATH)
+    body = doc.element.body
+    sect_pr = body.find(qn('w:sectPr'))
+
+    for el in list(body):
+        if el is not sect_pr:
+            body.remove(el)
+
+    # ── Todos los datos ──────────────────────────────────────────────────────
+    enc       = datos.get('encabezado', {})
+    numeros   = datos.get('numeros', '')
+    numero_ct = datos.get('numero', '')
+
+    # ── Título ───────────────────────────────────────────────────────────────
+    _p(doc, f'COMENTARIO TÉCNICO N° {numero_ct}',
+       bold=True, size=12, align=WD_ALIGN_PARAGRAPH.CENTER, antes=0, despues=8)
+
+    # ── Encabezado ───────────────────────────────────────────────────────────
+    _label_val(doc, 'RAZÓN SOCIAL',         enc.get('razon_social', ''))
+    _label_val(doc, 'DIRECCIÓN LEGAL',      enc.get('direccion', ''))
+    _label_val(doc, 'PROCEDENCIA',          enc.get('procedencia', ''))
+    _label_val(doc, 'COTIZACIÓN',           enc.get('cotizacion', ''))
+    _label_val(doc, 'INFORME DE ENSAYO N°', numeros,
+               align=WD_ALIGN_PARAGRAPH.CENTER, bold_valor=True)
+    muestra = (f"{numeros} / {enc.get('producto', '')} / "
+               f"{enc.get('punto_muestreo', '')} / {enc.get('presentacion', '')}")
+    _label_val(doc, 'Muestra Id', muestra,
+               align=WD_ALIGN_PARAGRAPH.CENTER, bold_valor=True)
+
+    _p(doc)
+
+    # ── Texto introductorio ───────────────────────────────────────────────────
+    p_intro = doc.add_paragraph()
+    p_intro.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    p_intro.paragraph_format.space_before = Pt(0)
+    p_intro.paragraph_format.space_after  = Pt(6)
+    r = p_intro.add_run(
+        'A continuación, mediante cuadro comparativo (Cuadro N°1), se presenta la evaluación '
+        'de los resultados de análisis obtenidos respecto al Decreto Supremo N° 031-2010-SA '
+        'Reglamento de la Calidad del Agua para Consumo Humano'
+    )
+    r.font.size = Pt(10); r.font.name = 'Arial'
+
+    _p(doc)
+
+    # ── Cuadro N°1 ────────────────────────────────────────────────────────────
+    _p(doc, 'Cuadro N°1', bold=True, size=10,
+       align=WD_ALIGN_PARAGRAPH.CENTER, antes=0, despues=2)
+    _p(doc,
+       'Resultados de Laboratorio - Son comparados con los valores respectivos al Decreto '
+       'Supremo N° 031-2010-SA Reglamento de la Calidad del Agua para Consumo Humano',
+       bold=True, size=9, align=WD_ALIGN_PARAGRAPH.CENTER, antes=0, despues=4)
+
+    # ── Tabla de resultados ───────────────────────────────────────────────────
+    table = doc.add_table(rows=1, cols=5)
+    table.style = 'Table Grid'
+
+    HDRS   = ['Análisis', 'Unidad', 'Resultados', 'D.S. N° 031-2010-SA', 'Evaluación']
+    COL_CM = [5.2, 2.2, 2.2, 2.9, 2.0]
+    C_HDR  = '002060'
+
+    for cell, h in zip(table.rows[0].cells, HDRS):
+        _celda(cell, h, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, color_hex='FFFFFF')
+        _shading(cell, C_HDR)
+
+    no_conformes = []
+
+    for fila in datos.get('filas', []):
+        analisis  = (fila.get('analisis')   or '').strip()
+        unidad    = (fila.get('unidad')     or '').strip()
+        resultado = (fila.get('resultado')  or '').strip()
+        lmp_disp  = (fila.get('lmp')        or '').strip() or '-'
+        ev        = (fila.get('evaluacion') or '').strip()
+
+        if not analisis and not resultado:
+            continue
+
+        if ev == 'NO CONFORME':
+            no_conformes.append(analisis)
+
+        row_cells = table.add_row().cells
+        vals   = [analisis, unidad, resultado, lmp_disp, ev]
+        aligns = [WD_ALIGN_PARAGRAPH.LEFT] + [WD_ALIGN_PARAGRAPH.CENTER] * 4
+
+        for i, (cell, val, aln) in enumerate(zip(row_cells, vals, aligns)):
+            color = 'C00000' if (i == 4 and val == 'NO CONFORME') else None
+            _celda(cell, val, bold=(color is not None), align=aln, color_hex=color)
+
+    for row in table.rows:
+        for i, cell in enumerate(row.cells):
+            cell.width = Cm(COL_CM[i])
+
+    _p(doc)
+
+    # ── Conclusión ────────────────────────────────────────────────────────────
+    p_cl = doc.add_paragraph()
+    p_cl.paragraph_format.space_before = Pt(0)
+    p_cl.paragraph_format.space_after  = Pt(2)
+    p_cl.add_run('Conclusión:').bold = True
+
+    p_cl2 = doc.add_paragraph()
+    p_cl2.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    p_cl2.paragraph_format.space_before = Pt(0)
+    p_cl2.paragraph_format.space_after  = Pt(4)
+    concl = datos.get('conclusion') or _texto_conclusion(numeros, no_conformes)
+    r = p_cl2.add_run(concl)
+    r.font.size = Pt(10); r.font.name = 'Arial'
+
+    # ── Referencias ───────────────────────────────────────────────────────────
+    _p(doc)
+    p_ref = doc.add_paragraph()
+    p_ref.paragraph_format.space_before = Pt(0)
+    p_ref.paragraph_format.space_after  = Pt(2)
+    p_ref.add_run('Referencias:').bold = True
+
+    _p(doc,
+       'Decreto Supremo N° 031-2010-SA Reglamento de la Calidad del Agua para Consumo Humano',
+       size=10, antes=0, despues=4)
+
+    # ── Fecha ─────────────────────────────────────────────────────────────────
+    _p(doc)
+    h = datetime.today()
+    _p(doc, f'Lima, {h.day} de {MESES[h.month]} del {h.year}',
+       size=10, align=WD_ALIGN_PARAGRAPH.RIGHT, antes=0, despues=0)
+
+    _p(doc); _p(doc)
+
+    # ── Firmas: extraídas del template CON FONDO (tiene las imágenes) ─────────
     _insertar_firmas_template(doc)
 
     for _ in range(11):
