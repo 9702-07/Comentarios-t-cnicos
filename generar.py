@@ -783,9 +783,13 @@ def generar_word_desde_datos(datos, output_path):
     _p(doc); _p(doc)
 
     # ── Firmas: copiar bloque VML exacto del template ─────────────────────────
+    # Las imágenes de firma son flotantes (wp:anchor). En el template original
+    # hay 11 párrafos vacíos después del VML para que "FIN DEL DOCUMENTO" no
+    # quede tapado por las imágenes flotantes.
     _insertar_firmas_template(doc)
 
-    _p(doc)
+    for _ in range(11):
+        _p(doc)
     _p(doc, 'FIN DEL DOCUMENTO', bold=True, size=10,
        align=WD_ALIGN_PARAGRAPH.CENTER)
 
