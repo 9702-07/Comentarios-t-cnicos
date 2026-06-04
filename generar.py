@@ -887,7 +887,7 @@ def generar_word_desde_datos(datos, output_path):
         for i, (cell, val, aln) in enumerate(zip(row_cells, vals, aligns)):
             # NO CONFORME → resultado (col 2) y evaluación (col 4) en azul negrita
             if ev == 'NO CONFORME' and i in (2, 4):
-                _celda(cell, val, bold=True, align=aln, color_hex='002060')
+                _celda(cell, val, bold=True, align=aln, color_hex='00B0F0')
             else:
                 _celda(cell, val, align=aln)
 
@@ -1047,7 +1047,7 @@ def generar_word_sin_fondo(datos, output_path):
         for i, (cell, val, aln) in enumerate(zip(row_cells, vals, aligns)):
             # NO CONFORME → resultado (col 2) y evaluación (col 4) en azul negrita
             if ev == 'NO CONFORME' and i in (2, 4):
-                _celda(cell, val, bold=True, align=aln, color_hex='002060')
+                _celda(cell, val, bold=True, align=aln, color_hex='00B0F0')
             else:
                 _celda(cell, val, align=aln)
 
