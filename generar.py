@@ -457,6 +457,10 @@ def evaluar(resultado_str, lmp_val):
     return 'CONFORME' if res <= lmp_num else 'NO CONFORME'
 
 
+# Ruta al logo Pacific Control (para bloque de firmas SIN FONDO)
+LOGO_PACIFIC_PATH = os.path.join(os.path.dirname(__file__), 'logo_pacific.png')
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # GENERACIÓN DEL WORD (basado en el template)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -634,6 +638,82 @@ def _insertar_firmas_template(doc):
             idx += 1
         else:
             body.append(para)
+
+
+def _insertar_firmas_sin_fondo(doc):
+    """
+    Bloque de firmas para formato SIN FONDO.
+    Layout: [logo | línea + nombre/cargo] × 2 columnas (Jose / Joel).
+    Sin rúbricas escaneadas — solo logo corporativo + datos.
+    """
+    import io as _io
+    AZUL = RGBColor(0x00, 0x2B, 0x7F)   # azul Pacific Control
+
+    FIRMAS = [
+        ('JOSE ANDRES HUIMAN DIAZ',      'Analista',
+         'PACIFIC CONTROL SAC',           'CIP 193383'),
+        ('MBI. JOEL CARLOS ELIAS PAREDES','Supervisor de Lab. Microbiología',
+         'PACIFIC CONTROL SAC',           'CBP 13240'),
+    ]
+
+    # Tabla exterior: 1 fila, 2 columnas (Jose | Joel)
+    t_ext = doc.add_table(rows=1, cols=2)
+    _quitar_bordes(t_ext)
+    t_ext.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+    for col_i, (nombre, cargo, empresa, codigo) in enumerate(FIRMAS):
+        cell_ext = t_ext.rows[0].cells[col_i]
+        cell_ext.width = Cm(7.5)
+
+        # Tabla interior: 1 fila, 2 columnas (logo | línea+texto)
+        t_int = cell_ext.add_table(rows=1, cols=2)
+        _quitar_bordes(t_int)
+
+        # ── Celda izquierda: logo ──────────────────────────────────────────
+        c_logo = t_int.rows[0].cells[0]
+        c_logo.width = Cm(2.0)
+        p_logo = c_logo.paragraphs[0]
+        p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_logo.paragraph_format.space_before = Pt(0)
+        p_logo.paragraph_format.space_after  = Pt(0)
+        if os.path.isfile(LOGO_PACIFIC_PATH):
+            p_logo.add_run().add_picture(LOGO_PACIFIC_PATH, width=Cm(1.7))
+
+        # ── Celda derecha: línea azul + nombre/cargo ───────────────────────
+        c_txt = t_int.rows[0].cells[1]
+        c_txt.width = Cm(5.5)
+
+        # Línea (borde inferior del párrafo = línea de firma)
+        p_linea = c_txt.paragraphs[0]
+        p_linea.paragraph_format.space_before = Pt(0)
+        p_linea.paragraph_format.space_after  = Pt(3)
+        # Añadir borde inferior al párrafo para simular la línea de firma
+        pPr = p_linea._element.get_or_add_pPr()
+        pBdr = OxmlElement('w:pBdr')
+        bottom = OxmlElement('w:bottom')
+        bottom.set(qn('w:val'),   'single')
+        bottom.set(qn('w:sz'),    '12')
+        bottom.set(qn('w:space'), '1')
+        bottom.set(qn('w:color'), '002B7F')
+        pBdr.append(bottom)
+        pPr.append(pBdr)
+        r = p_linea.add_run(' ')          # espacio para que la línea tenga altura
+        r.font.size = Pt(12)
+
+        def _txt_azul(cell, texto, bold=False, size=9):
+            p = cell.add_paragraph()
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after  = Pt(1)
+            r = p.add_run(texto)
+            r.bold = bold; r.font.size = Pt(size)
+            r.font.name = 'Arial'
+            r.font.color.rgb = AZUL
+
+        _txt_azul(c_txt, nombre,   bold=True)
+        _txt_azul(c_txt, cargo)
+        _txt_azul(c_txt, empresa)
+        _txt_azul(c_txt, codigo)
 
 
 def _texto_conclusion(numeros, no_conformes):
@@ -1004,11 +1084,10 @@ def generar_word_sin_fondo(datos, output_path):
 
     _p(doc); _p(doc)
 
-    # ── Firmas: extraídas del template CON FONDO (tiene las imágenes) ─────────
-    _insertar_firmas_template(doc)
+    # ── Firmas SIN FONDO: logo + línea + texto (sin rúbricas escaneadas) ──────
+    _insertar_firmas_sin_fondo(doc)
 
-    for _ in range(11):
-        _p(doc)
+    _p(doc)
     _p(doc, 'FIN DEL DOCUMENTO', bold=True, size=10,
        align=WD_ALIGN_PARAGRAPH.CENTER)
 
