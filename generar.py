@@ -461,6 +461,59 @@ def evaluar(resultado_str, lmp_val):
 # GENERACIÓN DEL WORD (basado en el template)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _limpiar_header(doc):
+    """Vacía el header del documento (elimina logo y fondo de Pacific Control)."""
+    for section in doc.sections:
+        hdr_el = section.header._element
+        for child in list(hdr_el):
+            hdr_el.remove(child)
+        hdr_el.append(OxmlElement('w:p'))  # párrafo vacío mínimo
+
+
+def _footer_general_terms(doc):
+    """Reemplaza el footer con el texto 'general terms' de Pacific Control."""
+    from docx.shared import RGBColor as _RGB
+    for section in doc.sections:
+        ftr = section.footer
+        ftr_el = ftr._element
+        for child in list(ftr_el):
+            ftr_el.remove(child)
+
+        # Crear párrafo en el footer
+        p_el = OxmlElement('w:p')
+        ftr_el.append(p_el)
+
+        def _add_run_xml(text, hex_color, size_half=14):
+            r_el = OxmlElement('w:r')
+            rPr = OxmlElement('w:rPr')
+            fonts = OxmlElement('w:rFonts')
+            fonts.set(qn('w:ascii'), 'Arial')
+            fonts.set(qn('w:hAnsi'), 'Arial')
+            rPr.append(fonts)
+            sz = OxmlElement('w:sz')
+            sz.set(qn('w:val'), str(size_half))
+            rPr.append(sz)
+            color = OxmlElement('w:color')
+            color.set(qn('w:val'), hex_color)
+            rPr.append(color)
+            r_el.append(rPr)
+            t_el = OxmlElement('w:t')
+            t_el.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+            t_el.text = text
+            r_el.append(t_el)
+            p_el.append(r_el)
+
+        _add_run_xml(
+            'Our general term and conditions are available in full '
+            'www.pacificcontrol.us or at your request\n',
+            '000000'
+        )
+        _add_run_xml(
+            'Offices, Resident Inspectors, Joint Ventureships, and '
+            'Representativs throughtout os the world',
+            'FF6600'
+        )
+
 def _shading(cell, fill_hex):
     tc = cell._tc
     tcPr = tc.get_or_add_tcPr()
@@ -814,11 +867,17 @@ def generar_word_sin_fondo(datos, output_path):
     """
     Genera el Comentario Técnico en formato SIN FONDO:
     fondo blanco limpio, sin header de Pacific Control, footer 'general terms'.
-    Mismo contenido y firmas que la versión con fondo.
+    Usa el template CON FONDO como base para que las imágenes de firma
+    (rId11, rId13) ya estén en el documento y el VML funcione correctamente.
     Retorna la lista de parámetros NO CONFORMES.
     """
-    # ── Abrir template sin fondo y limpiar cuerpo ────────────────────────────
-    doc = Document(TEMPLATE_SF_PATH)
+    # ── Base: template CON FONDO (preserva relaciones de imágenes de firma) ──
+    doc = Document(TEMPLATE_PATH)
+
+    # Vaciar header y cambiar footer ANTES de limpiar el cuerpo
+    _limpiar_header(doc)
+    _footer_general_terms(doc)
+
     body = doc.element.body
     sect_pr = body.find(qn('w:sectPr'))
 
