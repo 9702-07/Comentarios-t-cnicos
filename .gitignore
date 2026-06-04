@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Salida local de pruebas
+output/
+_verif.docx
+_*_test*.py
+
+# Vercel CLI
+.vercel

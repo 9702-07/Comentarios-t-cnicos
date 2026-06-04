@@ -578,11 +578,67 @@ def _insertar_firmas_template(doc):
             body.append(para)
 
 
-def generar_word(numero_ct, informes, lmp_dict, output_path):
+def construir_datos(numero_ct, informes, lmp_dict):
     """
-    Genera el Comentario Técnico basándose en el template DOCX.
-    Preserva header (logo + fondo) y footer (número de página).
-    Retorna (lista_no_conformes, lista_sin_lmp).
+    Extrae el encabezado y evalúa cada parámetro contra los LMP, SIN generar el
+    Word. Devuelve un dict listo para mostrarse en la pantalla de revisión y, una
+    vez corregido por el usuario, pasarse a generar_word_desde_datos().
+    """
+    inf0    = informes[0]
+    numeros = ' y '.join(i['numero'] for i in informes if i['numero'])
+
+    encabezado = {
+        'razon_social':   inf0['razon_social'],
+        'direccion':      inf0['direccion'],
+        'procedencia':    inf0['procedencia'],
+        'cotizacion':     inf0['cotizacion'],
+        'producto':       inf0['producto'],
+        'punto_muestreo': inf0['punto_muestreo'],
+        'presentacion':   inf0['presentacion'],
+    }
+
+    # Filas únicas (sin duplicados por nombre normalizado, respetando el orden)
+    todos, vistos = [], set()
+    for inf_i in informes:
+        for fila in inf_i['resultados']:
+            key = normalizar(fila[0])
+            if key not in vistos:
+                vistos.add(key)
+                todos.append(fila)
+
+    filas, sin_lmp = [], []
+    for analisis, unidad, resultado in todos:
+        lmp_info = buscar_lmp(analisis, lmp_dict)
+        lmp_val  = lmp_info[0] if lmp_info else None
+        ev       = evaluar(resultado, lmp_val)
+        if lmp_info is None:
+            sin_lmp.append(analisis)
+        lmp_display = str(lmp_val).replace('.', ',') if lmp_val not in (None, '') else '-'
+        res_display = resultado.split()[0] if resultado else resultado
+        filas.append({
+            'analisis':   analisis,
+            'unidad':     unidad,
+            'resultado':  res_display,
+            'lmp':        lmp_display,
+            'evaluacion': ev,
+        })
+
+    return {
+        'numero':      numero_ct,
+        'encabezado':  encabezado,
+        'numeros':     numeros,
+        'tiene_micro': any(i['tiene_micro'] for i in informes),
+        'filas':       filas,
+        'sin_lmp':     sin_lmp,
+    }
+
+
+def generar_word_desde_datos(datos, output_path):
+    """
+    Genera el Comentario Técnico (.docx) a partir de un dict de datos ya evaluados
+    (y posiblemente corregidos por el usuario en la pantalla de revisión).
+    Preserva header (logo + fondo) y footer (número de página) del template.
+    Retorna la lista de parámetros NO CONFORMES.
     """
     # ── Abrir template y limpiar cuerpo preservando sectPr ──────────────────
     doc = Document(TEMPLATE_PATH)
@@ -595,22 +651,22 @@ def generar_word(numero_ct, informes, lmp_dict, output_path):
             body.remove(el)
 
     # ── Datos comunes ────────────────────────────────────────────────────────
-    inf0        = informes[0]
-    numeros     = ' y '.join(i['numero'] for i in informes if i['numero'])
-    tiene_micro = any(i['tiene_micro'] for i in informes)
+    enc       = datos.get('encabezado', {})
+    numeros   = datos.get('numeros', '')
+    numero_ct = datos.get('numero', '')
 
     # ── Título ───────────────────────────────────────────────────────────────
     _p(doc, f'COMENTARIO TÉCNICO N° {numero_ct}',
        bold=True, size=12, align=WD_ALIGN_PARAGRAPH.CENTER, antes=0, despues=8)
 
     # ── Encabezado ───────────────────────────────────────────────────────────
-    _label_val(doc, 'RAZÓN SOCIAL',    inf0['razon_social'])
-    _label_val(doc, 'DIRECCIÓN LEGAL', inf0['direccion'])
-    _label_val(doc, 'PROCEDENCIA',     inf0['procedencia'])
-    _label_val(doc, 'COTIZACIÓN',      inf0['cotizacion'])
+    _label_val(doc, 'RAZÓN SOCIAL',    enc.get('razon_social', ''))
+    _label_val(doc, 'DIRECCIÓN LEGAL', enc.get('direccion', ''))
+    _label_val(doc, 'PROCEDENCIA',     enc.get('procedencia', ''))
+    _label_val(doc, 'COTIZACIÓN',      enc.get('cotizacion', ''))
     _label_val(doc, 'INFORME DE ENSAYO N°', numeros)
-    muestra = (f"{numeros} / {inf0['producto']} / "
-               f"{inf0['punto_muestreo']} / {inf0['presentacion']}")
+    muestra = (f"{numeros} / {enc.get('producto', '')} / "
+               f"{enc.get('punto_muestreo', '')} / {enc.get('presentacion', '')}")
     _label_val(doc, 'Muestra Id', muestra)
 
     _p(doc)
@@ -638,14 +694,6 @@ def generar_word(numero_ct, informes, lmp_dict, output_path):
        size=9, align=WD_ALIGN_PARAGRAPH.CENTER, antes=0, despues=4)
 
     # ── Tabla de resultados ───────────────────────────────────────────────────
-    todos, vistos = [], set()
-    for inf_i in informes:
-        for fila in inf_i['resultados']:
-            key = normalizar(fila[0])
-            if key not in vistos:
-                vistos.add(key)
-                todos.append(fila)
-
     table = doc.add_table(rows=1, cols=5)
     table.style = 'Table Grid'
 
@@ -657,23 +705,23 @@ def generar_word(numero_ct, informes, lmp_dict, output_path):
         _celda(cell, h, bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, color_hex='FFFFFF')
         _shading(cell, C_HDR)
 
-    no_conformes, sin_lmp = [], []
+    no_conformes = []
 
-    for analisis, unidad, resultado in todos:
-        row_cells = table.add_row().cells
-        lmp_info  = buscar_lmp(analisis, lmp_dict)
-        lmp_val   = lmp_info[0] if lmp_info else None
-        ev        = evaluar(resultado, lmp_val)
+    for fila in datos.get('filas', []):
+        analisis  = (fila.get('analisis')   or '').strip()
+        unidad    = (fila.get('unidad')     or '').strip()
+        resultado = (fila.get('resultado')  or '').strip()
+        lmp_disp  = (fila.get('lmp')         or '').strip() or '-'
+        ev        = (fila.get('evaluacion')  or '').strip()
+
+        if not analisis and not resultado:
+            continue  # ignorar filas vacías que el usuario no llegó a llenar
 
         if ev == 'NO CONFORME':
             no_conformes.append(analisis)
-        if lmp_info is None:
-            sin_lmp.append(analisis)
 
-        lmp_display = str(lmp_val).replace('.', ',') if lmp_val not in (None, '') else '-'
-        res_display = resultado.split()[0] if resultado else resultado
-
-        vals   = [analisis, unidad, res_display, lmp_display, ev]
+        row_cells = table.add_row().cells
+        vals   = [analisis, unidad, resultado, lmp_disp, ev]
         aligns = [WD_ALIGN_PARAGRAPH.LEFT] + [WD_ALIGN_PARAGRAPH.CENTER] * 4
 
         for i, (cell, val, aln) in enumerate(zip(row_cells, vals, aligns)):
@@ -737,4 +785,14 @@ def generar_word(numero_ct, informes, lmp_dict, output_path):
        align=WD_ALIGN_PARAGRAPH.CENTER)
 
     doc.save(output_path)
-    return no_conformes, sin_lmp
+    return no_conformes
+
+
+def generar_word(numero_ct, informes, lmp_dict, output_path):
+    """
+    Compatibilidad: construye los datos y genera el Word en un solo paso.
+    Retorna (lista_no_conformes, lista_sin_lmp).
+    """
+    datos = construir_datos(numero_ct, informes, lmp_dict)
+    no_conformes = generar_word_desde_datos(datos, output_path)
+    return no_conformes, datos['sin_lmp']

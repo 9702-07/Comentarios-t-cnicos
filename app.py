@@ -2,11 +2,17 @@
 # -*- coding: utf-8 -*-
 """
 Servidor web para generación de Comentarios Técnicos – Pacific Control SAC.
-Ejecutar: python app.py  →  abrir http://localhost:5000
+Ejecutar: python app.py  →  abrir http://localhost:5002
+
+Flujo en dos pasos:
+  1) POST /analizar  → extrae los PDFs, evalúa contra los LMP y devuelve la tabla
+                       (JSON) para que el usuario la revise y corrija en pantalla.
+  2) POST /generar   → recibe la tabla ya corregida por el usuario (JSON) y genera
+                       el Word con exactamente esos valores.
 """
 
-import os, uuid, shutil, importlib, sys
-from flask import Flask, request, render_template, send_file, jsonify
+import os, io, uuid, base64, shutil, importlib, sys
+from flask import Flask, request, render_template, jsonify
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50 MB máx
@@ -15,13 +21,24 @@ OUTPUT_DIR = '/tmp/output'
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
+def _cargar_generar():
+    """Recarga generar.py en cada request para asegurar código actualizado."""
+    if 'generar' in sys.modules:
+        del sys.modules['generar']
+    import generar as gen
+    return gen
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
 
 
-@app.route('/generar', methods=['POST'])
-def generar():
+# ═══════════════════════════════════════════════════════════════════════════════
+# PASO 1 — Analizar: extraer + evaluar, devolver tabla para revisión (sin Word)
+# ═══════════════════════════════════════════════════════════════════════════════
+@app.route('/analizar', methods=['POST'])
+def analizar():
     try:
         # ── Validar campos ───────────────────────────────────────────────────
         numero = request.form.get('numero', '').strip()
@@ -41,10 +58,7 @@ def generar():
         os.makedirs(tmp)
 
         try:
-            # Recargar generar.py en cada request para asegurar código actualizado
-            if 'generar' in sys.modules:
-                del sys.modules['generar']
-            import generar as gen
+            gen = _cargar_generar()
 
             # Guardar PDFs
             pdf_paths = []
@@ -71,25 +85,18 @@ def generar():
                 micro = ' [microbiológicos]' if inf['tiene_micro'] else ''
                 log.append(f"N° {inf['numero']} — {len(inf['resultados'])} parámetros{micro}")
 
-            # ── Cargar LMP ────────────────────────────────────────────────────
-            lmp = gen.cargar_lmp(lmp_path)
+            # ── Cargar LMP y construir tabla evaluada (sin generar el Word) ────
+            lmp   = gen.cargar_lmp(lmp_path)
+            datos = gen.construir_datos(numero, informes, lmp)
 
-            # ── Generar Word ──────────────────────────────────────────────────
-            nombre_doc = f'Comentario Técnico N° {numero}.docx'
-            output     = os.path.join(OUTPUT_DIR, nombre_doc)
-            no_conf, sin_lmp = gen.generar_word(numero, informes, lmp, output)
-
-            # ── Respuesta ─────────────────────────────────────────────────────
+            # ── Respuesta: la tabla para que el usuario la revise ─────────────
             return jsonify({
-                'ok':           True,
-                'archivo':      nombre_doc,
-                'log':          log,
-                'no_conformes': no_conf,
-                'sin_lmp':      sin_lmp[:10],
-                'sin_lmp_total': len(sin_lmp),
-                'lmp_count':    len(lmp),
-                'total_params': sum(len(i['resultados']) for i in informes),
-                'tiene_micro':  any(i['tiene_micro'] for i in informes),
+                'ok':            True,
+                'datos':         datos,          # numero, encabezado, numeros, tiene_micro, filas, sin_lmp
+                'log':           log,
+                'lmp_count':     len(lmp),
+                'total_params':  len(datos['filas']),
+                'sin_lmp_total': len(datos['sin_lmp']),
             })
 
         finally:
@@ -99,15 +106,47 @@ def generar():
         return jsonify({'error': f'Error inesperado: {str(e)}'}), 500
 
 
-@app.route('/descargar/<path:nombre>')
-def descargar(nombre):
-    path = os.path.join(OUTPUT_DIR, nombre)
-    if not os.path.isfile(path):
-        return 'Archivo no encontrado', 404
-    return send_file(path, as_attachment=True, download_name=nombre)
+# ═══════════════════════════════════════════════════════════════════════════════
+# PASO 2 — Generar: recibir la tabla ya corregida y producir el Word
+# ═══════════════════════════════════════════════════════════════════════════════
+@app.route('/generar', methods=['POST'])
+def generar():
+    try:
+        payload = request.get_json(silent=True) or {}
+        datos   = payload.get('datos')
+
+        if not datos or not str(datos.get('numero', '')).strip():
+            return jsonify({'error': 'Faltan datos del Comentario Técnico.'}), 400
+        if not datos.get('filas'):
+            return jsonify({'error': 'No hay parámetros en la tabla para generar el documento.'}), 400
+
+        gen = _cargar_generar()
+
+        numero     = str(datos['numero']).strip()
+        nombre_doc = f'Comentario Técnico N° {numero}.docx'
+
+        # Generar el Word en memoria y devolverlo en la MISMA respuesta (base64).
+        # Así la descarga no depende de un archivo guardado en /tmp entre dos
+        # peticiones distintas, algo poco fiable en serverless (Vercel) porque
+        # cada petición puede atenderla una instancia diferente.
+        buf = io.BytesIO()
+        no_conformes = gen.generar_word_desde_datos(datos, buf)
+
+        return jsonify({
+            'ok':           True,
+            'archivo':      nombre_doc,
+            'docx_b64':     base64.b64encode(buf.getvalue()).decode('ascii'),
+            'no_conformes': no_conformes,
+            'total_params': len([f for f in datos['filas']
+                                 if (f.get('analisis') or f.get('resultado'))]),
+            'tiene_micro':  bool(datos.get('tiene_micro')),
+        })
+
+    except Exception as e:
+        return jsonify({'error': f'Error inesperado: {str(e)}'}), 500
 
 
 if __name__ == '__main__':
     print('\n  Comentarios Técnicos — Pacific Control SAC')
-    print('  Abre tu navegador en:  http://localhost:5000\n')
+    print('  Abre tu navegador en:  http://localhost:5002\n')
     app.run(debug=False, port=5002)
