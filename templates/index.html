@@ -352,9 +352,9 @@
         <p class="section-title">Datos del Comentario</p>
         <label for="numero">
           N° Comentario Técnico
-          <span>— Ej: 0267-2026</span>
+          <span id="numero-hint">— se incrementa automáticamente</span>
         </label>
-        <input type="text" id="numero" name="numero" placeholder="0267-2026" autocomplete="off">
+        <input type="text" id="numero" name="numero" placeholder="2026-0001" autocomplete="off">
       </div>
 
       <hr class="divider">
@@ -442,6 +442,44 @@
   <footer>D.S. N° 031-2010-SA · Reglamento de la Calidad del Agua para Consumo Humano</footer>
 
 <script>
+  // ════════════════════════════════════════════════════════════════════════════
+  // Contador automático de N° Comentario Técnico
+  // Persiste en localStorage. Formato: YYYY-NNNN (ej: 2026-0001)
+  // ════════════════════════════════════════════════════════════════════════════
+  const CONTADOR_KEY = 'ct_contador_v1';
+
+  function _contadorActual() {
+    const hoy = new Date().getFullYear().toString();
+    try {
+      const obj = JSON.parse(localStorage.getItem(CONTADOR_KEY) || '{}');
+      // Si el año guardado es diferente al actual, reiniciar
+      if (obj.year !== hoy) return { year: hoy, num: 0 };
+      return { year: hoy, num: parseInt(obj.num) || 0 };
+    } catch { return { year: hoy, num: 0 }; }
+  }
+
+  function _formatNumero(year, num) {
+    return `${year}-${String(num).padStart(4, '0')}`;
+  }
+
+  function _guardarContador(year, num) {
+    localStorage.setItem(CONTADOR_KEY, JSON.stringify({ year, num }));
+  }
+
+  function _rellenarNumero() {
+    const c = _contadorActual();
+    const sig = c.num + 1;  // el próximo a usar
+    document.getElementById('numero').value = _formatNumero(c.year, sig);
+  }
+
+  function _incrementarContador() {
+    const c = _contadorActual();
+    _guardarContador(c.year, c.num + 1);
+  }
+
+  // Pre-rellenar al cargar la página
+  _rellenarNumero();
+
   // ════════════════════════════════════════════════════════════════════════════
   // Utilidades
   // ════════════════════════════════════════════════════════════════════════════
@@ -807,6 +845,7 @@
 
   document.getElementById('btn-volver').addEventListener('click', () => {
     clearFlash();
+    _rellenarNumero();   // refresca el número al volver al paso 1
     mostrarVista('form');
   });
 
@@ -842,6 +881,8 @@
       if (data.error) {
         showError(data.error);
       } else {
+        // Incrementar contador y preparar el siguiente número
+        _incrementarContador();
         renderResultado(data);
         mostrarVista('result');
       }
