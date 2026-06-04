@@ -496,14 +496,17 @@ def _p(doc, texto='', bold=False, size=10, align=None, antes=0, despues=4):
     return p
 
 
-def _label_val(doc, label, valor, size=10):
+def _label_val(doc, label, valor, size=10, align=None, bold_valor=False):
     p = doc.add_paragraph()
     p.paragraph_format.space_before = Pt(2)
     p.paragraph_format.space_after  = Pt(6)
     p.paragraph_format.line_spacing = Pt(14)
+    if align:
+        p.alignment = align
     rl = p.add_run(f'{label}: ')
     rl.bold = True; rl.font.size = Pt(size); rl.font.name = 'Arial'
     rv = p.add_run(valor)
+    rv.bold = bold_valor
     rv.font.size = Pt(size); rv.font.name = 'Arial'
     return p
 
@@ -664,10 +667,12 @@ def generar_word_desde_datos(datos, output_path):
     _label_val(doc, 'DIRECCIÓN LEGAL', enc.get('direccion', ''))
     _label_val(doc, 'PROCEDENCIA',     enc.get('procedencia', ''))
     _label_val(doc, 'COTIZACIÓN',      enc.get('cotizacion', ''))
-    _label_val(doc, 'INFORME DE ENSAYO N°', numeros)
+    _label_val(doc, 'INFORME DE ENSAYO N°', numeros,
+               align=WD_ALIGN_PARAGRAPH.CENTER, bold_valor=True)
     muestra = (f"{numeros} / {enc.get('producto', '')} / "
                f"{enc.get('punto_muestreo', '')} / {enc.get('presentacion', '')}")
-    _label_val(doc, 'Muestra Id', muestra)
+    _label_val(doc, 'Muestra Id', muestra,
+               align=WD_ALIGN_PARAGRAPH.CENTER, bold_valor=True)
 
     _p(doc)
 
