@@ -121,40 +121,28 @@ def generar():
         numero     = str(datos['numero']).strip()
         nombre_doc = f'Comentario Técnico N° {numero}.docx'
 
-        # ── Generar los 4 archivos en memoria ────────────────────────────────
-        # Word Con Fondo
-        buf_docx_cf = io.BytesIO()
-        no_conformes = gen.generar_word_desde_datos(datos, buf_docx_cf)
+        # ── Generar ambos PDFs en memoria ─────────────────────────────────────
+        no_conformes = [f.get('analisis', '').strip()
+                        for f in datos.get('filas', [])
+                        if (f.get('evaluacion') or '').strip() == 'NO CONFORME']
 
-        # Word Sin Fondo
-        buf_docx_sf = io.BytesIO()
-        gen.generar_word_sin_fondo(datos, buf_docx_sf)
-
-        # PDF Con Fondo
         buf_pdf_cf = io.BytesIO()
         gen.generar_pdf(datos, buf_pdf_cf, con_fondo=True)
 
-        # PDF Sin Fondo
         buf_pdf_sf = io.BytesIO()
         gen.generar_pdf(datos, buf_pdf_sf, con_fondo=False)
 
         base = f'Comentario Técnico N° {numero}'
         return jsonify({
-            'ok':             True,
-            'no_conformes':   no_conformes,
-            'total_params':   len([f for f in datos['filas']
-                                   if (f.get('analisis') or f.get('resultado'))]),
-            'tiene_micro':    bool(datos.get('tiene_micro')),
-            # Word
-            'nombre_docx_cf': f'{base} (Con Fondo).docx',
-            'nombre_docx_sf': f'{base} (Sin Fondo).docx',
-            'docx_cf_b64':    base64.b64encode(buf_docx_cf.getvalue()).decode('ascii'),
-            'docx_sf_b64':    base64.b64encode(buf_docx_sf.getvalue()).decode('ascii'),
-            # PDF
-            'nombre_pdf_cf':  f'{base} (Con Fondo).pdf',
-            'nombre_pdf_sf':  f'{base} (Sin Fondo).pdf',
-            'pdf_cf_b64':     base64.b64encode(buf_pdf_cf.getvalue()).decode('ascii'),
-            'pdf_sf_b64':     base64.b64encode(buf_pdf_sf.getvalue()).decode('ascii'),
+            'ok':            True,
+            'no_conformes':  no_conformes,
+            'total_params':  len([f for f in datos['filas']
+                                  if (f.get('analisis') or f.get('resultado'))]),
+            'tiene_micro':   bool(datos.get('tiene_micro')),
+            'nombre_pdf_cf': f'{base} (Con Fondo).pdf',
+            'nombre_pdf_sf': f'{base} (Sin Fondo).pdf',
+            'pdf_cf_b64':    base64.b64encode(buf_pdf_cf.getvalue()).decode('ascii'),
+            'pdf_sf_b64':    base64.b64encode(buf_pdf_sf.getvalue()).decode('ascii'),
         })
 
     except Exception as e:

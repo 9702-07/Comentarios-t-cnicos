@@ -729,14 +729,8 @@
         ${noConfTxt}
         <div class="download-group">
           <div class="dl-row">
-            <span class="dl-label">Word</span>
-            <a id="btn-dl-cf"  class="btn-dl btn-dl-cf"  download="${esc(data.nombre_docx_cf)}">⬇ Con Fondo</a>
-            <a id="btn-dl-sf"  class="btn-dl btn-dl-sf"  download="${esc(data.nombre_docx_sf)}">⬇ Sin Fondo</a>
-          </div>
-          <div class="dl-row">
-            <span class="dl-label">PDF</span>
-            <a id="btn-dl-pcf" class="btn-dl btn-dl-pcf" download="${esc(data.nombre_pdf_cf)}">⬇ Con Fondo</a>
-            <a id="btn-dl-psf" class="btn-dl btn-dl-psf" download="${esc(data.nombre_pdf_sf)}">⬇ Sin Fondo</a>
+            <a id="btn-dl-pcf" class="btn-dl btn-dl-cf"  download="${esc(data.nombre_pdf_cf)}">⬇ Con Fondo</a>
+            <a id="btn-dl-psf" class="btn-dl btn-dl-sf"  download="${esc(data.nombre_pdf_sf)}">⬇ Sin Fondo</a>
           </div>
         </div>
         <div style="margin-top:12px;">
@@ -745,12 +739,9 @@
         </div>
       </div>`;
 
-    const mimeDocx = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    const mimePdf  = 'application/pdf';
-    if (data.docx_cf_b64) document.getElementById('btn-dl-cf').href  = URL.createObjectURL(b64ToBlob(data.docx_cf_b64, mimeDocx));
-    if (data.docx_sf_b64) document.getElementById('btn-dl-sf').href  = URL.createObjectURL(b64ToBlob(data.docx_sf_b64, mimeDocx));
-    if (data.pdf_cf_b64)  document.getElementById('btn-dl-pcf').href = URL.createObjectURL(b64ToBlob(data.pdf_cf_b64, mimePdf));
-    if (data.pdf_sf_b64)  document.getElementById('btn-dl-psf').href = URL.createObjectURL(b64ToBlob(data.pdf_sf_b64, mimePdf));
+    const mimePdf = 'application/pdf';
+    if (data.pdf_cf_b64) document.getElementById('btn-dl-pcf').href = URL.createObjectURL(b64ToBlob(data.pdf_cf_b64, mimePdf));
+    if (data.pdf_sf_b64) document.getElementById('btn-dl-psf').href = URL.createObjectURL(b64ToBlob(data.pdf_sf_b64, mimePdf));
 
     document.getElementById('btn-rerevisar').addEventListener('click', () => {
       clearFlash();
