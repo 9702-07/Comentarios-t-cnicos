@@ -301,16 +301,23 @@
     }
     .btn-link:hover { color: #0d2c52; text-decoration: underline; }
 
-    .download-group { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+    .download-group { margin-top: 16px; }
+    .dl-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; align-items: center; }
+    .dl-label { font-size: .78rem; font-weight: 700; color: #6b7d8e; text-transform: uppercase;
+                letter-spacing: .8px; width: 46px; flex-shrink: 0; }
     .btn-dl {
-      display: inline-flex; align-items: center; gap: 7px;
-      padding: 11px 22px; font-size: .92rem; font-weight: 700;
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 20px; font-size: .9rem; font-weight: 700;
       border-radius: 8px; text-decoration: none; transition: background .2s; border: none; cursor: pointer;
     }
-    .btn-dl-cf { background: #0d2c52; color: #fff; }
-    .btn-dl-cf:hover { background: #1a4580; }
-    .btn-dl-sf { background: #fff; color: #0d2c52; border: 2px solid #0d2c52; }
-    .btn-dl-sf:hover { background: #f0f4f8; }
+    .btn-dl-cf  { background: #0d2c52; color: #fff; }
+    .btn-dl-cf:hover  { background: #1a4580; }
+    .btn-dl-sf  { background: #fff; color: #0d2c52; border: 2px solid #0d2c52; }
+    .btn-dl-sf:hover  { background: #f0f4f8; }
+    .btn-dl-pcf { background: #b91c1c; color: #fff; }
+    .btn-dl-pcf:hover { background: #991b1b; }
+    .btn-dl-psf { background: #fff; color: #b91c1c; border: 2px solid #b91c1c; }
+    .btn-dl-psf:hover { background: #fff5f5; }
     #result .btn-link, #result #btn-nuevo {
       margin-top: 16px; margin-left: 8px;
     }
@@ -721,12 +728,16 @@
         ${microTxt ? `<p style="font-size:.85rem;color:#374151;margin-bottom:8px;">${microTxt}</p>` : ''}
         ${noConfTxt}
         <div class="download-group">
-          <a id="btn-dl-cf" class="btn-dl btn-dl-cf" download="${esc(data.archivo_cf)}">
-            ⬇ Con Fondo
-          </a>
-          <a id="btn-dl-sf" class="btn-dl btn-dl-sf" download="${esc(data.archivo_sf)}">
-            ⬇ Sin Fondo
-          </a>
+          <div class="dl-row">
+            <span class="dl-label">Word</span>
+            <a id="btn-dl-cf"  class="btn-dl btn-dl-cf"  download="${esc(data.nombre_docx_cf)}">⬇ Con Fondo</a>
+            <a id="btn-dl-sf"  class="btn-dl btn-dl-sf"  download="${esc(data.nombre_docx_sf)}">⬇ Sin Fondo</a>
+          </div>
+          <div class="dl-row">
+            <span class="dl-label">PDF</span>
+            <a id="btn-dl-pcf" class="btn-dl btn-dl-pcf" download="${esc(data.nombre_pdf_cf)}">⬇ Con Fondo</a>
+            <a id="btn-dl-psf" class="btn-dl btn-dl-psf" download="${esc(data.nombre_pdf_sf)}">⬇ Sin Fondo</a>
+          </div>
         </div>
         <div style="margin-top:12px;">
           <button id="btn-rerevisar" class="btn-link" type="button">← Volver a revisar</button>
@@ -734,16 +745,13 @@
         </div>
       </div>`;
 
-    // Armar descargas desde base64 (fiable en serverless)
-    const mime = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    if (data.docx_cf_b64) {
-      document.getElementById('btn-dl-cf').href =
-        URL.createObjectURL(b64ToBlob(data.docx_cf_b64, mime));
-    }
-    if (data.docx_sf_b64) {
-      document.getElementById('btn-dl-sf').href =
-        URL.createObjectURL(b64ToBlob(data.docx_sf_b64, mime));
-    }
+    const mimeDocx = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    const mimePdf  = 'application/pdf';
+    if (data.docx_cf_b64) document.getElementById('btn-dl-cf').href  = URL.createObjectURL(b64ToBlob(data.docx_cf_b64, mimeDocx));
+    if (data.docx_sf_b64) document.getElementById('btn-dl-sf').href  = URL.createObjectURL(b64ToBlob(data.docx_sf_b64, mimeDocx));
+    if (data.pdf_cf_b64)  document.getElementById('btn-dl-pcf').href = URL.createObjectURL(b64ToBlob(data.pdf_cf_b64, mimePdf));
+    if (data.pdf_sf_b64)  document.getElementById('btn-dl-psf').href = URL.createObjectURL(b64ToBlob(data.pdf_sf_b64, mimePdf));
+
     document.getElementById('btn-rerevisar').addEventListener('click', () => {
       clearFlash();
       mostrarVista('review');

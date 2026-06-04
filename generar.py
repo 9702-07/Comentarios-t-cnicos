@@ -17,9 +17,12 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 
 # Rutas a archivos fijos (mismo directorio que este archivo)
-TEMPLATE_PATH    = os.path.join(os.path.dirname(__file__), 'Comentarios técnico ejemplo.docx')
-TEMPLATE_SF_PATH = os.path.join(os.path.dirname(__file__), 'template_sin_fondo.docx')
-LMP_PATH         = os.path.join(os.path.dirname(__file__), 'DECRETOS.xlsx')
+_HERE            = os.path.dirname(os.path.abspath(__file__))
+TEMPLATE_PATH    = os.path.join(_HERE, 'Comentarios técnico ejemplo.docx')
+TEMPLATE_SF_PATH = os.path.join(_HERE, 'template_sin_fondo.docx')
+LMP_PATH         = os.path.join(_HERE, 'DECRETOS.xlsx')
+_FONT_REGULAR    = os.path.join(_HERE, 'Arial.ttf')
+_FONT_BOLD       = os.path.join(_HERE, 'ArialBold.ttf')
 
 MESES = {
     1: "enero", 2: "febrero", 3: "marzo", 4: "abril",
@@ -1109,3 +1112,283 @@ def generar_word(numero_ct, informes, lmp_dict, output_path):
     datos = construir_datos(numero_ct, informes, lmp_dict)
     no_conformes = generar_word_desde_datos(datos, output_path)
     return no_conformes, datos['sin_lmp']
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# GENERACIÓN DE PDF (fpdf2)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def generar_pdf(datos, output_path, con_fondo=True):
+    """
+    Genera el Comentario Técnico en formato PDF usando fpdf2.
+    con_fondo=True  → formato CON FONDO (header/background Pacific Control)
+    con_fondo=False → formato SIN FONDO (blanco limpio, footer general terms)
+    """
+    from fpdf import FPDF
+    import zipfile, io as _io
+
+    # ── Colores ──────────────────────────────────────────────────────────────
+    C_AZUL    = (0, 32, 96)        # 002060 — header tabla
+    C_CELESTE = (0, 176, 240)      # 00B0F0 — NO CONFORME
+    C_BLANCO  = (255, 255, 255)
+    C_NEGRO   = (0, 0, 0)
+    C_NARANJA = (255, 102, 0)      # footer sin fondo
+    C_AZUL_F  = (0, 43, 127)       # texto firmas
+
+    # ── Clase PDF con footer ─────────────────────────────────────────────────
+    class _PDF(FPDF):
+        def __init__(self, sf):
+            super().__init__()
+            self._sf = sf           # True = sin fondo
+
+        def header(self):
+            pass                    # el header se inserta manualmente en add_page
+
+        def footer(self):
+            fw = self.w - self.l_margin - self.r_margin
+            self.set_y(-18)
+            if self._sf:
+                self.set_font('Helvetica', '', 7)
+                self.set_text_color(*C_NEGRO)
+                self.cell(fw, 3.5,
+                    'Our general term and conditions are available in full '
+                    'www.pacificcontrol.us or at your request',
+                    new_x='LMARGIN', new_y='NEXT')
+                self.set_font('Helvetica', '', 7)
+                self.set_text_color(*C_NARANJA)
+                self.cell(fw, 3.5,
+                    'Offices, Resident Inspectors, Joint Ventureships, and '
+                    'Representativs throughtout os the world',
+                    new_x='LMARGIN', new_y='NEXT')
+            else:
+                self.set_font('Helvetica', '', 8)
+                self.set_text_color(100, 100, 100)
+                self.cell(fw, 5, f'Página {self.page_no()}', align='C')
+
+    # ── Crear PDF ─────────────────────────────────────────────────────────────
+    pdf = _PDF(sf=not con_fondo)
+    pdf.set_margins(30, 28 if con_fondo else 25, 30)
+    pdf.set_auto_page_break(auto=True, margin=22)
+
+    # Registrar fuentes con soporte UTF-8
+    _fname = 'Helvetica'   # fallback
+    if os.path.isfile(_FONT_REGULAR):
+        pdf.add_font('ct_regular', '', _FONT_REGULAR)
+        _fname = 'ct_regular'
+    if os.path.isfile(_FONT_BOLD):
+        pdf.add_font('ct_bold', '', _FONT_BOLD)
+    _fbold = 'ct_bold' if os.path.isfile(_FONT_BOLD) else _fname
+
+    def _font(bold=False, size=10):
+        name = _fbold if bold else _fname
+        pdf.set_font(name, '', size)
+
+    pdf.add_page()
+    W = pdf.w - pdf.l_margin - pdf.r_margin   # ancho útil ≈ 150 mm
+
+    # ── Background / header (CON FONDO) ───────────────────────────────────────
+    if con_fondo:
+        try:
+            with zipfile.ZipFile(TEMPLATE_PATH) as z:
+                bg = z.read('word/media/image5.jpg')
+            # Fondo completo de la página
+            pdf.image(_io.BytesIO(bg), x=0, y=0, w=pdf.w, h=pdf.h)
+            # Reiniciar posición después de la imagen de fondo
+            pdf.set_xy(pdf.l_margin, 28)
+        except Exception:
+            pass
+
+    enc       = datos.get('encabezado', {})
+    numeros   = datos.get('numeros', '')
+    numero_ct = str(datos.get('numero', '')).strip()
+
+    # ── Titulo ───────────────────────────────────────────────────────────────
+    _font(bold=True, size=12)
+    pdf.set_text_color(*C_NEGRO)
+    pdf.cell(W, 8, f'COMENTARIO TÉCNICO N° {numero_ct}', align='C', new_x='LMARGIN', new_y='NEXT')
+    pdf.ln(3)
+
+    # ── Encabezado ────────────────────────────────────────────────────────────
+    def _lv(label, valor, center=False):
+        _font(bold=True, size=10)
+        lw = pdf.get_string_width(f'{label}: ') + 2
+        if center:
+            pdf.cell(lw, 5.5, f'{label}: ', new_x='RIGHT', new_y='TOP')
+            pdf.multi_cell(W - lw, 5.5, valor, align='C', new_x='LMARGIN', new_y='NEXT')
+        else:
+            pdf.cell(lw, 5.5, f'{label}: ', new_x='RIGHT', new_y='TOP')
+            _font(bold=False, size=10)
+            pdf.multi_cell(W - lw, 5.5, valor, new_x='LMARGIN', new_y='NEXT')
+
+    _lv('RAZÓN SOCIAL',    enc.get('razon_social', ''))
+    _lv('DIRECCIÓN LEGAL', enc.get('direccion', ''))
+    _lv('PROCEDENCIA',     enc.get('procedencia', ''))
+    _lv('COTIZACIÓN',      enc.get('cotizacion', ''))
+    pdf.ln(2)
+
+    _font(bold=True, size=10)
+    pdf.cell(W, 5.5, f'INFORME DE ENSAYO N° {numeros}', align='C', new_x='LMARGIN', new_y='NEXT')
+    muestra = (f'{numeros} / {enc.get("producto", "")} / '
+               f'{enc.get("punto_muestreo", "")} / {enc.get("presentacion", "")}')
+    pdf.multi_cell(W, 5.5, f'Muestra Id: {muestra}', align='C', new_x='LMARGIN', new_y='NEXT')
+    pdf.ln(3)
+
+    # ── Texto introductorio ───────────────────────────────────────────────────
+    _font(bold=False, size=10)
+    pdf.set_text_color(*C_NEGRO)
+    pdf.multi_cell(W, 5,
+        'A continuación, mediante cuadro comparativo (Cuadro N°1), se presenta la evaluación '
+        'de los resultados de análisis obtenidos respecto al Decreto Supremo N° 031-2010-SA '
+        'Reglamento de la Calidad del Agua para Consumo Humano', align='J',
+        new_x='LMARGIN', new_y='NEXT')
+    pdf.ln(3)
+
+    # ── Cuadro N°1 ────────────────────────────────────────────────────────────
+    _font(bold=True, size=10)
+    pdf.cell(W, 5, 'Cuadro N°1', align='C', new_x='LMARGIN', new_y='NEXT')
+    _font(bold=not con_fondo, size=9)
+    pdf.multi_cell(W, 4.5,
+        'Resultados de Laboratorio - Son comparados con los valores respectivos al Decreto '
+        'Supremo N° 031-2010-SA Reglamento de la Calidad del Agua para Consumo Humano',
+        align='C', new_x='LMARGIN', new_y='NEXT')
+    pdf.ln(2)
+
+    # ── Tabla de resultados ───────────────────────────────────────────────────
+    COL_W  = [52, 22, 22, 29, 20]     # mm (total ≈ 145 mm)
+    HDRS   = ['Análisis', 'Unidad', 'Resultados', 'D.S. N° 031-2010-SA', 'Evaluación']
+    LINE_H = 5.0
+
+    def _dibujar_cabecera():
+        pdf.set_fill_color(*C_AZUL)
+        pdf.set_text_color(*C_BLANCO)
+        _font(bold=True, size=8)
+        for h, w in zip(HDRS, COL_W):
+            pdf.cell(w, 7, h, border=1, align='C', fill=True)
+        pdf.ln()
+
+    _dibujar_cabecera()
+
+    for fila in datos.get('filas', []):
+        analisis  = (fila.get('analisis')   or '').strip()
+        unidad    = (fila.get('unidad')     or '').strip()
+        resultado = (fila.get('resultado')  or '').strip()
+        lmp_disp  = (fila.get('lmp')        or '').strip() or '-'
+        ev        = (fila.get('evaluacion') or '').strip()
+
+        if not analisis and not resultado:
+            continue
+
+        es_nc = (ev == 'NO CONFORME')
+
+        # ── Estimar altura de la fila (en base al ancho de texto) ────────────
+        _font(bold=False, size=8)
+        txt_w = pdf.get_string_width(analisis)
+        n_lin = max(1, int(txt_w / (COL_W[0] - 2)) + 1)
+        row_h = n_lin * LINE_H
+
+        # Salto de página con re-cabecera si es necesario
+        if pdf.get_y() + row_h > pdf.page_break_trigger:
+            pdf.add_page()
+            if con_fondo:
+                try:
+                    with zipfile.ZipFile(TEMPLATE_PATH) as z:
+                        bg = z.read('word/media/image5.jpg')
+                    pdf.image(_io.BytesIO(bg), x=0, y=0, w=pdf.w, h=pdf.h)
+                    pdf.set_xy(pdf.l_margin, 28)
+                except Exception:
+                    pass
+            _dibujar_cabecera()
+
+        y0 = pdf.get_y()
+        x0 = pdf.l_margin
+
+        # Col 0: Análisis (multi-línea)
+        pdf.set_xy(x0, y0)
+        _font(bold=False, size=8)
+        pdf.set_text_color(*C_NEGRO)
+        pdf.multi_cell(COL_W[0], LINE_H, analisis, border='LTB', align='L')
+        row_h = pdf.get_y() - y0
+
+        # Cols 1-4
+        for ci, val, celeste in [(1, unidad, False), (2, resultado, es_nc),
+                                  (3, lmp_disp, False), (4, ev, es_nc)]:
+            pdf.set_xy(x0 + sum(COL_W[:ci]), y0)
+            _font(bold=celeste, size=8)
+            pdf.set_text_color(*(C_CELESTE if celeste else C_NEGRO))
+            pdf.cell(COL_W[ci], row_h, val, border=1, align='C')
+
+        pdf.set_y(y0 + row_h)
+
+    pdf.ln(4)
+
+    # ── Conclusión ────────────────────────────────────────────────────────────
+    _font(bold=True, size=10);  pdf.set_text_color(*C_NEGRO)
+    pdf.cell(W, 5, 'Conclusión:', new_x='LMARGIN', new_y='NEXT')
+    _font(bold=False, size=10)
+    concl = datos.get('conclusion') or _texto_conclusion(numeros, [])
+    pdf.multi_cell(W, 5, concl, align='J', new_x='LMARGIN', new_y='NEXT')
+    pdf.ln(3)
+
+    # ── Referencias ───────────────────────────────────────────────────────────
+    _font(bold=True, size=10)
+    pdf.cell(W, 5, 'Referencias:', new_x='LMARGIN', new_y='NEXT')
+    _font(bold=False, size=10)
+    pdf.multi_cell(W, 5,
+        'Decreto Supremo N° 031-2010-SA Reglamento de la Calidad del Agua para Consumo Humano',
+        new_x='LMARGIN', new_y='NEXT')
+    pdf.ln(3)
+
+    # ── Fecha ─────────────────────────────────────────────────────────────────
+    h = datetime.today()
+    _font(bold=False, size=10)
+    pdf.cell(W, 5, f'Lima, {h.day} de {MESES[h.month]} del {h.year}',
+             align='R', new_x='LMARGIN', new_y='NEXT')
+    pdf.ln(8)
+
+    # ── Firmas ────────────────────────────────────────────────────────────────
+    FIRMAS = [
+        ('JOSE ANDRES HUIMAN DIAZ',       'Analista',
+         'PACIFIC CONTROL SAC',            'CIP 193383'),
+        ('MBI. JOEL CARLOS ELIAS PAREDES', 'Supervisor de Lab. Microbiología',
+         'PACIFIC CONTROL SAC',            'CBP 13240'),
+    ]
+    bloque_w = W / 2 - 5
+    logo_w   = 18
+    y_firma  = pdf.get_y()
+
+    for idx, (nombre, cargo, empresa, codigo) in enumerate(FIRMAS):
+        bx  = pdf.l_margin + idx * (bloque_w + 10)
+        lx1 = bx + logo_w + 3
+        lx2 = bx + bloque_w
+
+        if os.path.isfile(LOGO_PACIFIC_PATH):
+            pdf.image(LOGO_PACIFIC_PATH, x=bx, y=y_firma, h=logo_w)
+
+        ly = y_firma + logo_w - 1
+        pdf.set_draw_color(*C_AZUL_F)
+        pdf.line(lx1, ly, lx2, ly)
+
+        pdf.set_xy(lx1, ly + 1.5)
+        _font(bold=True, size=8);  pdf.set_text_color(*C_AZUL_F)
+        pdf.cell(lx2 - lx1, 4, nombre, align='L', new_x='LMARGIN', new_y='NEXT')
+        for txt in [cargo, empresa, codigo]:
+            _font(bold=False, size=8)
+            pdf.set_xy(lx1, pdf.get_y())
+            pdf.cell(lx2 - lx1, 4, txt, align='L', new_x='LMARGIN', new_y='NEXT')
+
+        if idx == 0:
+            pdf.set_y(y_firma)
+
+    pdf.set_y(y_firma + logo_w + 20)
+
+    # ── FIN DEL DOCUMENTO ─────────────────────────────────────────────────────
+    _font(bold=True, size=10);  pdf.set_text_color(*C_NEGRO)
+    pdf.cell(W, 5, 'FIN DEL DOCUMENTO', align='C', new_x='LMARGIN', new_y='NEXT')
+
+    # output() devuelve bytearray; guardarlo según el tipo de output_path
+    pdf_bytes = bytes(pdf.output())
+    if hasattr(output_path, 'write'):
+        output_path.write(pdf_bytes)
+    else:
+        with open(output_path, 'wb') as f:
+            f.write(pdf_bytes)
