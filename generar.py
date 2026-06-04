@@ -885,8 +885,11 @@ def generar_word_desde_datos(datos, output_path):
         aligns = [WD_ALIGN_PARAGRAPH.LEFT] + [WD_ALIGN_PARAGRAPH.CENTER] * 4
 
         for i, (cell, val, aln) in enumerate(zip(row_cells, vals, aligns)):
-            color = 'C00000' if (i == 4 and val == 'NO CONFORME') else None
-            _celda(cell, val, bold=(color is not None), align=aln, color_hex=color)
+            # NO CONFORME → resultado (col 2) y evaluación (col 4) en azul negrita
+            if ev == 'NO CONFORME' and i in (2, 4):
+                _celda(cell, val, bold=True, align=aln, color_hex='002060')
+            else:
+                _celda(cell, val, align=aln)
 
     for row in table.rows:
         for i, cell in enumerate(row.cells):
@@ -1042,8 +1045,11 @@ def generar_word_sin_fondo(datos, output_path):
         aligns = [WD_ALIGN_PARAGRAPH.LEFT] + [WD_ALIGN_PARAGRAPH.CENTER] * 4
 
         for i, (cell, val, aln) in enumerate(zip(row_cells, vals, aligns)):
-            color = 'C00000' if (i == 4 and val == 'NO CONFORME') else None
-            _celda(cell, val, bold=(color is not None), align=aln, color_hex=color)
+            # NO CONFORME → resultado (col 2) y evaluación (col 4) en azul negrita
+            if ev == 'NO CONFORME' and i in (2, 4):
+                _celda(cell, val, bold=True, align=aln, color_hex='002060')
+            else:
+                _celda(cell, val, align=aln)
 
     for row in table.rows:
         for i, cell in enumerate(row.cells):
