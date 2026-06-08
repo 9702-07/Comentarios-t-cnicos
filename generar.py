@@ -1353,33 +1353,50 @@ def generar_pdf(datos, output_path, con_fondo=True):
          'PACIFIC CONTROL SAC',            'CBP 13240'),
     ]
     bloque_w = W / 2 - 5
-    logo_w   = 18
     y_firma  = pdf.get_y()
 
-    for idx, (nombre, cargo, empresa, codigo) in enumerate(FIRMAS):
-        bx  = pdf.l_margin + idx * (bloque_w + 10)
-        lx1 = bx + logo_w + 3
-        lx2 = bx + bloque_w
+    if con_fondo:
+        # CON FONDO: imágenes completas del template (sello + firma escaneada + texto)
+        try:
+            with zipfile.ZipFile(TEMPLATE_PATH) as z:
+                img_jose = z.read('word/media/image1.png')
+                img_joel = z.read('word/media/image3.png')
+            x_jose = pdf.l_margin
+            x_joel = pdf.l_margin + bloque_w + 10
+            pdf.image(_io.BytesIO(img_jose), x=x_jose, y=y_firma, w=bloque_w)
+            pdf.image(_io.BytesIO(img_joel), x=x_joel, y=y_firma, w=bloque_w)
+            # Altura proporcional: max(0.528, 0.594) × bloque_w + margen
+            img_h = bloque_w * 0.60
+            pdf.set_y(y_firma + img_h + 5)
+        except Exception:
+            pdf.set_y(y_firma + 30)
+    else:
+        # SIN FONDO: solo sello + línea + texto (sin firma escaneada)
+        logo_w = 18
+        for idx, (nombre, cargo, empresa, codigo) in enumerate(FIRMAS):
+            bx  = pdf.l_margin + idx * (bloque_w + 10)
+            lx1 = bx + logo_w + 3
+            lx2 = bx + bloque_w
 
-        if os.path.isfile(LOGO_PACIFIC_PATH):
-            pdf.image(LOGO_PACIFIC_PATH, x=bx, y=y_firma, h=logo_w)
+            if os.path.isfile(LOGO_PACIFIC_PATH):
+                pdf.image(LOGO_PACIFIC_PATH, x=bx, y=y_firma, h=logo_w)
 
-        ly = y_firma + logo_w - 1
-        pdf.set_draw_color(*C_AZUL_F)
-        pdf.line(lx1, ly, lx2, ly)
+            ly = y_firma + logo_w - 1
+            pdf.set_draw_color(*C_AZUL_F)
+            pdf.line(lx1, ly, lx2, ly)
 
-        pdf.set_xy(lx1, ly + 1.5)
-        _font(bold=True, size=8);  pdf.set_text_color(*C_AZUL_F)
-        pdf.cell(lx2 - lx1, 4, nombre, align='L', new_x='LMARGIN', new_y='NEXT')
-        for txt in [cargo, empresa, codigo]:
-            _font(bold=False, size=8)
-            pdf.set_xy(lx1, pdf.get_y())
-            pdf.cell(lx2 - lx1, 4, txt, align='L', new_x='LMARGIN', new_y='NEXT')
+            pdf.set_xy(lx1, ly + 1.5)
+            _font(bold=True, size=8);  pdf.set_text_color(*C_AZUL_F)
+            pdf.cell(lx2 - lx1, 4, nombre, align='L', new_x='LMARGIN', new_y='NEXT')
+            for txt in [cargo, empresa, codigo]:
+                _font(bold=False, size=8)
+                pdf.set_xy(lx1, pdf.get_y())
+                pdf.cell(lx2 - lx1, 4, txt, align='L', new_x='LMARGIN', new_y='NEXT')
 
-        if idx == 0:
-            pdf.set_y(y_firma)
+            if idx == 0:
+                pdf.set_y(y_firma)
 
-    pdf.set_y(y_firma + logo_w + 20)
+        pdf.set_y(y_firma + logo_w + 20)
 
     # ── FIN DEL DOCUMENTO ─────────────────────────────────────────────────────
     _font(bold=True, size=10);  pdf.set_text_color(*C_NEGRO)
